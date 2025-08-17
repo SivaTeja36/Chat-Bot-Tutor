@@ -3,6 +3,7 @@ from typing import List
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.entities.kid import Kid
 from app.entities.user import User
 
 # ----------------------- USER QUERIES ------------------------:
@@ -35,3 +36,7 @@ def get_user_by_phone_number(db: Session, phone_number: str):
             User.phone_number == phone_number
         ).first()
     )
+
+# ----------------------- KIDS QUERIES ------------------------:
+def get_kid_by_id(db: Session, kid_id: int) -> Kid:
+    return db.query(Kid).filter(Kid.id == kid_id).first()

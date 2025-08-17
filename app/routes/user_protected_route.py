@@ -24,7 +24,10 @@ from app.services.user_service import UserService
 from app.utils.constants import UPDATED_AT
 from app.utils.enums import OrderByTypes
 
-router = APIRouter(prefix="/users", tags=["USER MANAGEMENT SERVICE"])
+router = APIRouter(
+    prefix="/users", 
+    tags=["USER PROTECTED MANAGEMENT SERVICE"]
+)
 
 
 @router.post(

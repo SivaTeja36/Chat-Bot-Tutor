@@ -4,7 +4,6 @@ from typing import Dict, List, Tuple
 from dataclasses import dataclass
 import uuid
 from fastapi import (
-    BackgroundTasks,
     Depends,
     Request, 
     status,

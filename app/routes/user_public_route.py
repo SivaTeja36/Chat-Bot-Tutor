@@ -1,7 +1,15 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, status
+from fastapi import (
+    APIRouter, 
+    Depends, 
+    status
+)
 
 from app.models.base_response_models import ApiResponse
-from app.models.user_models import ForgotPasswordRequest, SetPasswordRequest, UserResponse
+from app.models.user_models import (
+    ForgotPasswordRequest, 
+    SetPasswordRequest, 
+    UserResponse
+)
 from app.services.user_service import UserService
 
 router = APIRouter(
