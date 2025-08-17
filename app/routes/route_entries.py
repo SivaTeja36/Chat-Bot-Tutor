@@ -1,14 +1,16 @@
 from . import (
     auth_route,
     user_public_route,
-    user_protected_route
+    user_protected_route,
+    kid_route
 )
 
 """
 add your protected route here
 """
 PROTECTED_ROUTES = [
-    user_protected_route.router
+    user_protected_route.router,
+    kid_route.router
 ]
 
 

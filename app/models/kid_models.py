@@ -20,9 +20,9 @@ class GetKidResponse(BaseModel):
     school: str 
     standard: str 
     created_at: datetime 
-    created_by: int
+    created_by: str
     updated_at: datetime 
-    updated_by: int 
+    updated_by: str 
 
 
 class QuestionRequest(BaseModel):
@@ -32,6 +32,6 @@ class QuestionRequest(BaseModel):
 class GetQuestionsHistoryResponse(BaseModel):
     id: str
     question: str 
-    answer: float 
+    answer: str 
     subject: str 
     created_at: datetime 

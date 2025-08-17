@@ -7,6 +7,7 @@ from typing import (
 )
 import uuid
 
+from automapper import mapper
 from dotenv import load_dotenv
 from fastapi import (
     Depends, 
@@ -63,7 +64,10 @@ class KidService:
         self.db.add(new_kid)
         self.db.commit()
 
-        return SuccessMessageResponse(message=KID_CREATED_SUCCESSFULLY)
+        return SuccessMessageResponse(
+            id=Kid.id,
+            message=KID_CREATED_SUCCESSFULLY
+        )
     
     def base_get_kid_query(self):
         return self.db.query(Kid)
@@ -200,8 +204,10 @@ class KidService:
     def get_kid_by_id(self, kid_id: int) -> GetKidResponse:
         kid = get_kid_by_id(self.db, kid_id)
         self._validate_kid_exist(kid)
+
+        users = get_all_users() 
         
-        return self.get_kid_response(kid)
+        return self.get_kid_response(kid, users)
 
     def update_kid_by_id(
         self, 
@@ -221,7 +227,10 @@ class KidService:
         kid.updated_at = sa.func.now()
 
         self.db.commit()
-        return SuccessMessageResponse(message=KID_UPDATED_SUCCESSFULLY)
+        return SuccessMessageResponse(
+            id=Kid.id,
+            message=KID_UPDATED_SUCCESSFULLY
+        )
     
     def delete_kid_by_id(self, kid_id: int) -> SuccessMessageResponse:
         kid = get_kid_by_id(self.db, kid_id)
@@ -229,7 +238,10 @@ class KidService:
 
         self.db.delete(kid)
         self.db.commit()
-        return SuccessMessageResponse(message=KID_DELETED_SUCCESSFULLY)
+        return SuccessMessageResponse(
+            id=Kid.id,
+            message=KID_DELETED_SUCCESSFULLY
+        )
 
     def create_question(self, kid_id: int, request: QuestionRequest) -> SuccessMessageResponse:
         kid = get_kid_by_id(self.db, kid_id)
@@ -250,7 +262,10 @@ class KidService:
             self.db.add(new_entry)
             self.db.commit()
 
-            return SuccessMessageResponse(message=QUESTION_ANSWERED_AND_STORED)
+            return SuccessMessageResponse(
+                id=new_entry.id,
+                message=QUESTION_ANSWERED_AND_STORED
+            )
 
         category_prompt = f"""
             Categorize the following question into a subject.
@@ -287,7 +302,9 @@ class KidService:
         self.db.add(new_entry)
         self.db.commit()
 
-        return SuccessMessageResponse(message=QUESTION_ANSWERED_AND_STORED)
+        return SuccessMessageResponse(
+            message=QUESTION_ANSWERED_AND_STORED
+        )
 
     def get_kid_questions_history_by_id(self, kid_id: int):
         kid = get_kid_by_id(self.db, kid_id)
@@ -300,4 +317,4 @@ class KidService:
             .all()
         )
 
-        return [GetQuestionsHistoryResponse.from_orm(h) for h in history]
+        return [mapper.to(GetQuestionsHistoryResponse).map(h) for h in history]

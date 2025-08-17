@@ -17,7 +17,8 @@ from app.models.base_response_models import (
 from app.models.kid_models import (
     GetQuestionsHistoryResponse,
     KidRequest,
-    GetKidResponse
+    GetKidResponse,
+    QuestionRequest
 )
 from app.services.kid_service import KidService
 from app.utils.constants import UPDATED_AT
@@ -126,13 +127,13 @@ async def update_kid_by_id(
 
 
 @router.post(
-    "/{kid_id}", 
+    "/{kid_id}/questions", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_201_CREATED
 )
 async def create_question(
     kid_id: PositiveInt,
-    request: KidRequest, 
+    request: QuestionRequest, 
     service: KidService = Depends(KidService)
 ) -> ApiResponse[SuccessMessageResponse]:
     return ApiResponse(data=service.create_question(
@@ -143,7 +144,7 @@ async def create_question(
 
 
 @router.get(
-    "/{kid_id}", 
+    "/{kid_id}/questions-history", 
     response_model=ApiResponse[List[GetQuestionsHistoryResponse]], 
     status_code=status.HTTP_200_OK
 )
