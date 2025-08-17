@@ -1,5 +1,7 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Dict, List, Tuple
+from urllib.parse import quote
+from jose import jwt
 
 from dataclasses import dataclass
 import uuid
@@ -15,14 +17,21 @@ from sqlalchemy.orm import Session
 from app.background_tasks.send_email_task import send_bulk_mails
 from app.connectors.database_connector import get_db
 from app.entities.user import User
+from app.models.base_response_models import SuccessMessageResponse
 from app.models.user_models import (
     ForgotPasswordRequest,
+    RegisterUserRequest,
     SetPasswordRequest,
     UpdateUserRequest,
     UserCreationRequest, 
     UserResponse,
     GetUserDetailsResponse,
     UserInfoResponse
+)
+from app.utils.auth_dependencies import (
+    ACCESS_TOKEN_EXPIRE_MINUTES, 
+    ALGORITHM, 
+    SECRET_KEY
 )
 from app.utils.constants import (
     A_PASSWORD_RESET_EMAIL_HAS_ALREADY_BEEN_SENT,
@@ -34,8 +43,10 @@ from app.utils.constants import (
     SET_YOUR_PASSWORD,
     THE_PASSWORD_RESET_EMAIL_HAS_BEEN_SENT_SUCCESSFULLY,
     USER_CREATED_SUCCESSFULLY,
+    USER_EXISTS,
     USER_NOT_FOUND,
-    USER_UPDATED_SUCCESSFULLY
+    USER_UPDATED_SUCCESSFULLY,
+    VERIFICATION_EMAIL_SENT_SUCCESSFULLY
 )
 from app.utils.db_queries import (
     get_user_by_email,
@@ -44,7 +55,8 @@ from app.utils.db_queries import (
 )
 from app.utils.email_utils import (
     create_bulk_email_request, 
-    create_mail_content_for_set_password
+    create_mail_content_for_set_password,
+    create_user_verification_email
 )
 from app.utils.helpers import (
     apply_filter, 
@@ -58,6 +70,67 @@ from app.utils.helpers import (
 class UserService:
     db: Session = Depends(get_db)
 
+    def create_claims_for_parent_registration(self, request: RegisterUserRequest) -> dict:
+        """
+            Create JWT claims for admin registration verification.
+        """
+        claims = {
+            "name": request.name,
+            "email": request.email,
+            "phone_number": request.phone_number,
+            "gender": request.gender,
+            "role": "PARENT",
+            "exp": datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES),
+        }
+        return claims    
+
+    async def send_verification_email(self, user_email: str, token: str):
+        """
+            Generate a verificaStion token, create a verification URL, and send the email.
+        """
+        encoded_email = quote(user_email)
+        encoded_invitation_token = quote(token)
+        verification_url = f"{self.VERIFICATION_URL}?email={encoded_email}&token={encoded_invitation_token}"
+        subject = "Verify your email address"
+        email_content = create_user_verification_email(url=verification_url)
+        
+        bulk_email_request = create_bulk_email_request(
+            template_id=None,
+            placeholder_values={},
+            content=email_content,
+            subject=subject,
+            recipients=[user_email]
+        )
+        await send_bulk_mails(
+            bulk_email_request=bulk_email_request
+        ) 
+        
+    async def send_verification_mail_to_user(self, request: RegisterUserRequest) -> SuccessMessageResponse:
+        """
+            Initiate the email verification process for admin registration.
+        """
+        claims = self.create_claims_for_parent_registration(request)
+        token = jwt.encode(
+            claims=claims,
+            key=SECRET_KEY,
+            algorithm=ALGORITHM
+        )
+        await self.send_verification_email(request.email, token)
+        return SuccessMessageResponse(message=VERIFICATION_EMAIL_SENT_SUCCESSFULLY)
+
+    def validate_user_details(self, user_details: User):
+        if not user_details:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=USER_NOT_FOUND
+            )
+
+    def verify_user_email(self, email: str):
+        user = get_user_by_email(self.db, email)
+        self.validate_user_details(user)
+        
+        return UserResponse(message=USER_EXISTS)
+
     def get_active_user_by_email(self, email: str):
         return (
             self.db.query(User)
@@ -66,13 +139,6 @@ class UserService:
                 User.is_active == True
             ).first()
         )
-
-    def validate_user_details(self, user_details: User):
-        if not user_details:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=USER_NOT_FOUND
-            )
         
     def _validate_email_not_exists(self, email: str) -> None:
         if get_user_by_email(self.db, email):
