@@ -3,7 +3,6 @@ from datetime import (
     timedelta
 )
 from dataclasses import dataclass
-import os
 from jose import jwt
 
 from fastapi import (
@@ -32,7 +31,6 @@ from app.utils.constants import (
 @dataclass
 class AuthService:
     user_service: UserService = Depends(UserService)
-    VERIFICATION_URL = os.getenv("VERIFICATION_URL")
     
     def create_claims(self, user: User):
         claims = {

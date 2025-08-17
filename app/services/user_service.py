@@ -1,9 +1,11 @@
 from datetime import datetime, timedelta
+import os
 from typing import Dict, List, Tuple
 from urllib.parse import quote
 from jose import jwt
 
 from dataclasses import dataclass
+from dotenv import load_dotenv
 import uuid
 from fastapi import (
     Depends,
@@ -65,10 +67,12 @@ from app.utils.helpers import (
     get_all_users
 )
 
+load_dotenv()
 
 @dataclass
 class UserService:
     db: Session = Depends(get_db)
+    VERIFICATION_URL = os.getenv("VERIFICATION_URL")
 
     def create_claims_for_parent_registration(self, request: RegisterUserRequest) -> dict:
         """
