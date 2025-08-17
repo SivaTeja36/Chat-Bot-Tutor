@@ -14,8 +14,7 @@ from app.models.base_response_models import (
     GetApiResponse
 )
 from app.models.user_models import (
-    UpdateUserRequest,
-    UserCreationRequest, 
+    UpdateUserRequest, 
     UserResponse,
     GetUserDetailsResponse,
     UserInfoResponse
@@ -28,32 +27,6 @@ router = APIRouter(
     prefix="/users", 
     tags=["USER PROTECTED MANAGEMENT SERVICE"]
 )
-
-
-@router.post(
-    "", 
-    response_model=ApiResponse[UserResponse], 
-    status_code=status.HTTP_201_CREATED
-)
-async def create_user(
-    request_state: Request,
-    password: str, 
-    service: UserService = Depends(UserService)
-) -> ApiResponse[UserResponse]:
-    request = UserCreationRequest(
-        name=request_state.state.user.name,
-        email=request_state.state.user.email,
-        gender=request_state.state.user.gender,
-        password=password,
-        role=request_state.state.user.role,
-        phone_number=request_state.state.user.phone_number
-    )
-    return ApiResponse(data=service.create_user(
-            logged_in_user_id=request_state.state.user.id, 
-            request=request
-        )
-    )
-
 
 @router.get(
     "", 

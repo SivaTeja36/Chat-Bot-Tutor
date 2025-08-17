@@ -17,6 +17,15 @@ class RegisterUserRequest(BaseModel):
     phone_number: str
 
 
+class ConfirmRegistrationRequest(BaseModel):
+    password: str
+    token: str
+
+    @validator("password")
+    def validate_user_creation_password(cls, password: str):
+        return validate_password(password)
+
+
 class UserCreationRequest(BaseModel):
     name: str
     email: EmailStr

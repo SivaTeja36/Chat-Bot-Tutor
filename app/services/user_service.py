@@ -114,6 +114,7 @@ class UserService:
             Initiate the email verification process for admin registration.
         """
         claims = self.create_claims_for_parent_registration(request)
+      
         token = jwt.encode(
             claims=claims,
             key=SECRET_KEY,
@@ -145,7 +146,9 @@ class UserService:
         )
         
     def _validate_email_not_exists(self, email: str) -> None:
-        if get_user_by_email(self.db, email):
+        email = get_user_by_email(self.db, email)
+
+        if email:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=EMAIL_ALREADY_EXISTS
@@ -158,7 +161,7 @@ class UserService:
                 detail=PHONE_NUMBER_ALREADY_EXISTS
             ) 
 
-    def add_user(self, request: UserCreationRequest, logged_in_user_id: int) -> User:
+    def add_user(self, request: UserCreationRequest) -> User:
         user = User(
             name=request.name,
             email=request.email,
@@ -167,9 +170,7 @@ class UserService:
             role=request.role,
             phone_number=request.phone_number,
             is_password_reset=True,
-            is_registered=True,
-            created_by=logged_in_user_id,
-            updated_by=logged_in_user_id
+            is_registered=True
         )
 
         self.db.add(user)
@@ -178,14 +179,13 @@ class UserService:
         return user
    
     def create_user(
-        self, 
-        logged_in_user_id: int, 
+        self,
         request: UserCreationRequest
     ) -> UserResponse:
         self._validate_email_not_exists(request.email)
         self._validate_phone_not_exists(request.phone_number)
 
-        user = self.add_user(request, logged_in_user_id)
+        user = self.add_user(request)
 
         return UserResponse(
             id=user.id,

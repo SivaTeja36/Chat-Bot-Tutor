@@ -53,7 +53,7 @@ def __verify_jwt(token: str):
         cur_user.role = payload.get("role")
         cur_user.gender = payload.get("gender")
         cur_user.phone_number = payload.get("phone_number") 
-        
+     
         return cur_user
 
 async def verify_auth_token(request: Request):

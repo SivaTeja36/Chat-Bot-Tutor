@@ -65,7 +65,7 @@ class KidService:
         self.db.commit()
 
         return SuccessMessageResponse(
-            id=Kid.id,
+            id=new_kid.id,
             message=KID_CREATED_SUCCESSFULLY
         )
     

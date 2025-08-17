@@ -10,12 +10,15 @@ from app.models.base_response_models import (
     SuccessMessageResponse
 )
 from app.models.user_models import (
+    ConfirmRegistrationRequest,
     ForgotPasswordRequest,
     RegisterUserRequest, 
-    SetPasswordRequest, 
+    SetPasswordRequest,
+    UserCreationRequest, 
     UserResponse
 )
 from app.services.user_service import UserService
+from app.utils.auth_dependencies import get_token_payload
 
 router = APIRouter(
     prefix="/users", 
@@ -52,6 +55,30 @@ async def verify_user_email(
     """
     return ApiResponse(data=service.verify_user_email(email))
 
+
+@router.post(
+    "", 
+    response_model=ApiResponse[UserResponse], 
+    status_code=status.HTTP_201_CREATED
+)
+async def create_user(
+    request: ConfirmRegistrationRequest, 
+    service: UserService = Depends(UserService)
+) -> ApiResponse[UserResponse]:
+    payload = get_token_payload(request.token)
+    request = UserCreationRequest(
+        name=payload.get("name"),
+        email=payload.get("email"),
+        gender=payload.get("gender"),
+        password=request.password,
+        role=payload.get("role"),
+        phone_number=payload.get("phone_number")
+    )
+
+    return ApiResponse(data=service.create_user(
+            request=request
+        )
+    )
 
 @router.post(
     "/set-password", 
