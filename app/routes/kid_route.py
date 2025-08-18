@@ -116,7 +116,7 @@ async def update_kid_by_id(
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_200_OK
 )
-async def update_kid_by_id(
+async def delete_kid_by_id(
     kid_id: PositiveInt, 
     service: KidService = Depends(KidService)
 ) -> ApiResponse[SuccessMessageResponse]:

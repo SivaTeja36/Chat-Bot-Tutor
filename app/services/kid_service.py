@@ -227,8 +227,9 @@ class KidService:
         kid.updated_at = sa.func.now()
 
         self.db.commit()
+
         return SuccessMessageResponse(
-            id=Kid.id,
+            id=kid_id,
             message=KID_UPDATED_SUCCESSFULLY
         )
     
@@ -238,8 +239,9 @@ class KidService:
 
         self.db.delete(kid)
         self.db.commit()
+        
         return SuccessMessageResponse(
-            id=Kid.id,
+            id=kid_id,
             message=KID_DELETED_SUCCESSFULLY
         )
 
@@ -313,7 +315,7 @@ class KidService:
         history = (
             self.db.query(QuestionHistory)
             .filter(QuestionHistory.kid_id == kid_id)
-            .order_by(QuestionHistory.created_at.desc())
+            .order_by(QuestionHistory.created_at.asc())
             .all()
         )
 
