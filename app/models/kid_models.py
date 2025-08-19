@@ -25,11 +25,20 @@ class GetKidResponse(BaseModel):
     updated_by: str 
 
 
+class ChatRequest(BaseModel):
+    title: str
+
+class GetChatResponse(BaseModel):
+    id: int 
+    title: str
+    created_at: datetime
+
+
 class QuestionRequest(BaseModel):
     question: str
 
 
-class GetQuestionsHistoryResponse(BaseModel):
+class GetChatConversationResponse(BaseModel):
     id: str
     question: str 
     answer: str 

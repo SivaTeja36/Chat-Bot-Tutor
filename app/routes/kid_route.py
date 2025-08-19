@@ -15,7 +15,9 @@ from app.models.base_response_models import (
     SuccessMessageResponse
 )
 from app.models.kid_models import (
-    GetQuestionsHistoryResponse,
+    ChatRequest,
+    GetChatConversationResponse,
+    GetChatResponse,
     KidRequest,
     GetKidResponse,
     QuestionRequest
@@ -81,7 +83,7 @@ async def get_all_kids(
 
 
 @router.get(
-    "/{kid_id}", 
+    "/data/{kid_id}", 
     response_model=ApiResponse[GetKidResponse], 
     status_code=status.HTTP_200_OK
 )
@@ -93,7 +95,7 @@ async def get_kid_by_id(
 
 
 @router.put(
-    "/{kid_id}", 
+    "/data/{kid_id}", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_200_OK
 )
@@ -112,7 +114,7 @@ async def update_kid_by_id(
 
 
 @router.delete(
-    "/{kid_id}", 
+    "/data/{kid_id}", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_200_OK
 )
@@ -127,16 +129,16 @@ async def delete_kid_by_id(
 
 
 @router.post(
-    "/{kid_id}/questions", 
+    "/chats", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_201_CREATED
 )
-async def create_question(
+async def create_kid_chat(
     kid_id: PositiveInt,
-    request: QuestionRequest, 
+    request: ChatRequest, 
     service: KidService = Depends(KidService)
 ) -> ApiResponse[SuccessMessageResponse]:
-    return ApiResponse(data=service.create_question(
+    return ApiResponse(data=service.create_kid_chat(
             kid_id=kid_id,
             request=request
         )
@@ -144,12 +146,73 @@ async def create_question(
 
 
 @router.get(
-    "/{kid_id}/questions-history", 
-    response_model=ApiResponse[List[GetQuestionsHistoryResponse]], 
+    "/chats", 
+    response_model=ApiResponse[List[GetChatResponse]], 
     status_code=status.HTTP_200_OK
 )
-async def get_kid_questions_history_by_id(
+async def get_all_kid_chats(
     kid_id: PositiveInt, 
     service: KidService = Depends(KidService)
-) -> ApiResponse[List[GetQuestionsHistoryResponse]]:
-    return ApiResponse(data=service.get_kid_questions_history_by_id(kid_id))
+) -> ApiResponse[List[GetChatResponse]]:
+    return ApiResponse(data=service.get_all_kid_chats(kid_id))
+
+
+@router.put(
+    "/chats/{chat_id}", 
+    response_model=ApiResponse[SuccessMessageResponse], 
+    status_code=status.HTTP_200_OK
+)
+async def update_kid_chat(
+    kid_id: PositiveInt,
+    chat_id: PositiveInt, 
+    request: ChatRequest, 
+    service: KidService = Depends(KidService)
+) -> ApiResponse[SuccessMessageResponse]:
+    return ApiResponse(data=service.update_kid_chat(
+            kid_id=kid_id,
+            chat_id=chat_id,
+            request=request
+        )
+    )
+
+
+@router.delete(
+    "/chats/{chat_id}", 
+    response_model=ApiResponse[SuccessMessageResponse], 
+    status_code=status.HTTP_200_OK
+)
+async def delete_kid_chat(
+    kid_id: PositiveInt,
+    chat_id: PositiveInt, 
+    service: KidService = Depends(KidService)
+) -> ApiResponse[List[GetChatResponse]]:
+    return ApiResponse(data=service.delete_kid_chat(kid_id, chat_id))
+
+
+@router.post(
+    "/chats/{chat_id}/conversation", 
+    response_model=ApiResponse[SuccessMessageResponse], 
+    status_code=status.HTTP_201_CREATED
+)
+async def create_chat_conversation(
+    chat_id: PositiveInt,
+    request: QuestionRequest, 
+    service: KidService = Depends(KidService)
+) -> ApiResponse[SuccessMessageResponse]:
+    return ApiResponse(data=service.create_chat_conversation(
+            chat_id=chat_id,
+            request=request
+        )
+    )
+
+
+@router.get(
+    "/chats/{chat_id}/conversation", 
+    response_model=ApiResponse[List[GetChatConversationResponse]], 
+    status_code=status.HTTP_200_OK
+)
+async def get_chat_conversation_by_id( 
+    chat_id: PositiveInt,
+    service: KidService = Depends(KidService)
+) -> ApiResponse[List[GetChatConversationResponse]]:
+    return ApiResponse(data=service.get_chat_conversation_by_id(chat_id))

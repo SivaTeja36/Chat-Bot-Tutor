@@ -5,11 +5,11 @@ import sqlalchemy as sa
 from app.connectors.database_connector import Base
 
 
-class QuestionHistory(Base):
-    __tablename__ = "questions_history"
+class ChatConversation(Base):
+    __tablename__ = "chat_conversation"
 
-    id: str = sa.Column(sa.String, primary_key=True, nullable=False) 
-    kid_id: int = sa.Column(sa.Integer, sa.ForeignKey("kids.id"), nullable=False)
+    id: int = sa.Column(sa.Integer, primary_key=True, nullable=False) 
+    chat_id: int = sa.Column(sa.Integer, sa.ForeignKey("chats.id"), nullable=False)
     question: str = sa.Column(sa.TEXT, nullable=False) 
     answer: str = sa.Column(sa.TEXT, nullable=False)  
     subject: str = sa.Column(sa.String(100), nullable=False)

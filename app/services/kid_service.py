@@ -19,23 +19,30 @@ from sqlalchemy.orm import Session
 from openai import OpenAI
 
 from app.connectors.database_connector import get_db
+from app.entities.chat import Chat
 from app.entities.kid import Kid
-from app.entities.question_history import QuestionHistory
+from app.entities.chat_conversation import ChatConversation
 from app.models.base_response_models import SuccessMessageResponse
 from app.models.kid_models import (
+    ChatRequest,
+    GetChatResponse,
     GetKidResponse,
-    GetQuestionsHistoryResponse, 
+    GetChatConversationResponse, 
     KidRequest,
     QuestionRequest
 )
 from app.utils.constants import (
+    CHAT_CREATED_SUCCESSFULLY,
+    CHAT_DELETED_SUCCESSFULLY,
+    CHAT_NOT_FOUND,
+    CHAT_UPDATED_SUCCESSFULLY,
     KID_CREATED_SUCCESSFULLY, 
     KID_DELETED_SUCCESSFULLY, 
     KID_NOT_FOUND, 
     KID_UPDATED_SUCCESSFULLY,
     QUESTION_ANSWERED_AND_STORED
 )
-from app.utils.db_queries import get_kid_by_id
+from app.utils.db_queries import get_chat_by_id, get_chat_by_kid_and_chat_id, get_kid_by_id
 from app.utils.helpers import (
     apply_filter, 
     apply_pagination, 
@@ -244,19 +251,84 @@ class KidService:
             id=kid_id,
             message=KID_DELETED_SUCCESSFULLY
         )
+    
+    def create_kid_chat(self, kid_id: int, request: ChatRequest) -> SuccessMessageResponse:
+        new_chat = Chat(
+            kid_id=kid_id,
+            title=request.title
+        )
+        self.db.add(new_chat)
+        self.db.commit()
 
-    def create_question(self, kid_id: int, request: QuestionRequest) -> SuccessMessageResponse:
-        kid = get_kid_by_id(self.db, kid_id)
-        self._validate_kid_exist(kid)
+        return SuccessMessageResponse(
+            id=new_chat.id,
+            message=CHAT_CREATED_SUCCESSFULLY
+        )
+
+    def get_all_kid_chats(self, kid_id: int) -> list[GetChatResponse]:
+        chats = (
+            self.db.query(Chat)
+            .filter(Chat.kid_id == kid_id)
+            .order_by(Chat.created_at.desc())
+            .all()
+        )
+        return [
+            GetChatResponse(
+                id=chat.id,
+                title=chat.title,
+                created_at=chat.created_at
+            )
+            for chat in chats
+        ]
+
+    def update_kid_chat(self, kid_id: int, chat_id: int, request: ChatRequest) -> SuccessMessageResponse:
+        chat = get_chat_by_kid_and_chat_id(self.db, kid_id, chat_id)
+        self._validate_chat_exist(chat)
+
+        chat.title = request.title
+        self.db.commit()
+
+        return SuccessMessageResponse(
+            id=chat_id,
+            message=CHAT_UPDATED_SUCCESSFULLY
+        )
+
+    def delete_kid_chat(self, kid_id: int, chat_id: int) -> SuccessMessageResponse:
+        chat = get_chat_by_kid_and_chat_id(self.db, kid_id, chat_id)
+        self._validate_chat_exist(chat)
+        
+        self.db.query(ChatConversation).filter(ChatConversation.chat_id == chat_id).delete()
+
+        self.db.delete(chat)
+        self.db.commit()
+
+        return SuccessMessageResponse(
+            id=chat_id,
+            message=CHAT_DELETED_SUCCESSFULLY
+        )
+
+    def _validate_chat_exist(self, chat: Chat):
+        if not chat:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=CHAT_NOT_FOUND
+            )        
+
+    def create_chat_conversation(
+        self, 
+        chat_id: int, 
+        request: QuestionRequest
+    ) -> SuccessMessageResponse:
+        chat = get_chat_by_id(self.db, chat_id)
+        self._validate_chat_exist(chat)
 
         moderation = self.client.moderations.create(
             model="omni-moderation-latest",
             input=request.question
         )
         if moderation.results[0].flagged:
-            new_entry = QuestionHistory(
-                id=str(uuid.uuid4()),
-                kid_id=kid_id,
+            new_entry = ChatConversation(
+                chat_id=chat_id,
                 question=request.question,
                 answer="This question is not allowed for kids.",
                 subject="Restricted Content"
@@ -294,9 +366,8 @@ class KidService:
         )
         answer = answer_resp.choices[0].message.content.strip()
 
-        new_entry = QuestionHistory(
-            id=str(uuid.uuid4()),
-            kid_id=kid_id,
+        new_entry = ChatConversation(
+            chat_id=chat_id,
             question=request.question,
             answer=answer,
             subject=subject
@@ -308,15 +379,15 @@ class KidService:
             message=QUESTION_ANSWERED_AND_STORED
         )
 
-    def get_kid_questions_history_by_id(self, kid_id: int):
-        kid = get_kid_by_id(self.db, kid_id)
-        self._validate_kid_exist(kid)
+    def get_chat_conversation_by_id(self, chat_id: int):
+        chat = get_chat_by_id(self.db, chat_id)
+        self._validate_chat_exist(chat)
 
         history = (
-            self.db.query(QuestionHistory)
-            .filter(QuestionHistory.kid_id == kid_id)
-            .order_by(QuestionHistory.created_at.asc())
+            self.db.query(ChatConversation)
+            .filter(ChatConversation.chat_id == chat_id)
+            .order_by(ChatConversation.created_at.asc())
             .all()
         )
 
-        return [mapper.to(GetQuestionsHistoryResponse).map(h) for h in history]
+        return [mapper.to(GetChatConversationResponse).map(h) for h in history]
