@@ -39,7 +39,7 @@ class QuestionRequest(BaseModel):
 
 
 class GetChatConversationResponse(BaseModel):
-    id: str
+    id: int
     question: str 
     answer: str 
     subject: str 

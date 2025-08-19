@@ -141,7 +141,7 @@ class KidService:
     ) -> GetKidResponse:
         return GetKidResponse(
             id=kid.id, 
-            name=kid.name,  
+            name=kid.name.title(),  
             age=kid.age, 
             gender=kid.gender,  
             school=kid.school, 
