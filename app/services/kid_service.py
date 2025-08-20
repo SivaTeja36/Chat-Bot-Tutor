@@ -244,7 +244,7 @@ class KidService:
         kid = get_kid_by_id(self.db, kid_id)
         self._validate_kid_exist(kid)
 
-        kid.is_active == False
+        kid.is_active = False
         self.db.commit()
         
         return SuccessMessageResponse(
