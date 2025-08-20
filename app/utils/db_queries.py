@@ -40,7 +40,7 @@ def get_user_by_phone_number(db: Session, phone_number: str):
 
 # ----------------------- KIDS QUERIES ------------------------:
 def get_kid_by_id(db: Session, kid_id: int) -> Kid:
-    return db.query(Kid).filter(Kid.id == kid_id).first()
+    return db.query(Kid).filter(Kid.id == kid_id).filter(Kid.is_active == True).first()
 
 def get_chat_by_kid_and_chat_id(db: Session, kid_id: int, chat_id: int) -> Chat:
     return (

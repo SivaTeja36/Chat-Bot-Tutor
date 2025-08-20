@@ -182,7 +182,7 @@ def create_email_notification_entity(
 
 async def send_bulk_mails(bulk_email_request: BulkEmailRequest):
     db: Session = build_db_session(PUBLIC_SCHEMA)
-    print("Start")
+  
     try:
         task_data = []
         notifiation_list = []

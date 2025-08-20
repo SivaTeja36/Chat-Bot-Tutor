@@ -19,3 +19,4 @@ class Kid(Base):
     created_by: int = sa.Column(sa.Integer, sa.ForeignKey("users.id"), nullable=False)
     updated_at: datetime = sa.Column(sa.DateTime, nullable=False, default=sa.func.now())
     updated_by: int = sa.Column(sa.Integer, sa.ForeignKey("users.id"), nullable=False)
+    is_active: bool = sa.Column(sa.Boolean, nullable=False, default=True)

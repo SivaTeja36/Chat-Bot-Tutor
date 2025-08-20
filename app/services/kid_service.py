@@ -77,7 +77,7 @@ class KidService:
         )
     
     def base_get_kid_query(self):
-        return self.db.query(Kid)
+        return self.db.query(Kid).filter(Kid.is_active == True)
     
     def get_matched_kid_based_on_search(
         self, 
@@ -244,7 +244,7 @@ class KidService:
         kid = get_kid_by_id(self.db, kid_id)
         self._validate_kid_exist(kid)
 
-        self.db.delete(kid)
+        kid.is_active == False
         self.db.commit()
         
         return SuccessMessageResponse(
