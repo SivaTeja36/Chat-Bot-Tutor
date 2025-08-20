@@ -315,23 +315,76 @@ class KidService:
             )        
 
     def create_chat_conversation(
-        self, 
-        chat_id: int, 
-        request: QuestionRequest
-    ) -> SuccessMessageResponse:
-        chat = get_chat_by_id(self.db, chat_id)
-        self._validate_chat_exist(chat)
+            self,
+            chat_id: int,
+            request: QuestionRequest
+        ) -> SuccessMessageResponse:
+            
+            chat = get_chat_by_id(self.db, chat_id)
+            self._validate_chat_exist(chat)
 
-        moderation = self.client.moderations.create(
-            model="omni-moderation-latest",
-            input=request.question
-        )
-        if moderation.results[0].flagged:
+            # Step 1: Moderation Check
+            moderation = self.client.moderations.create(
+                model="omni-moderation-latest",
+                input=request.question
+            )
+            
+            if moderation.results[0].flagged:
+                # Common fixed safe response for restricted content
+                safe_message = "I cannot provide you any data on this topic as it is not suitable for children."
+
+                new_entry = ChatConversation(
+                    chat_id=chat_id,
+                    question=request.question,
+                    answer=safe_message,
+                    subject="Restricted Content"
+                )
+                self.db.add(new_entry)
+                self.db.commit()
+
+                return SuccessMessageResponse(
+                    id=new_entry.id,
+                    message=QUESTION_ANSWERED_AND_STORED
+                )
+
+            # Step 2: Categorization Prompt
+            category_prompt = f"""
+            Categorize the following question into a subject.
+            Options: [Maths, Science, Social, General Knowledge, Other].
+            Question: "{request.question}"
+            Answer with only one word from the options.
+            """
+            category_resp = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": category_prompt}]
+            )
+            subject = category_resp.choices[0].message.content.strip()
+
+            # Step 3: Answer Generation Prompt - Strictly Safe
+            answer_prompt = f"""
+            You are a friendly teacher for 12-year-old kids.
+            
+            Rules:
+            - If the question is unsafe, harmful, or inappropriate for kids, 
+            then ONLY reply with this fixed message:
+            "I cannot provide you any data on this topic as it is not suitable for children."
+            - Otherwise, answer in simple, clear, and short language suitable for 12-year-old kids.
+            - Avoid violent, sexual, harmful, or complex content.
+
+            Question: {request.question}
+            """
+            answer_resp = self.client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=[{"role": "user", "content": answer_prompt}]
+            )
+            answer = answer_resp.choices[0].message.content.strip()
+
+            # Step 4: Save conversation
             new_entry = ChatConversation(
                 chat_id=chat_id,
                 question=request.question,
-                answer="This question is not allowed for kids.",
-                subject="Restricted Content"
+                answer=answer,
+                subject=subject
             )
             self.db.add(new_entry)
             self.db.commit()
@@ -340,44 +393,6 @@ class KidService:
                 id=new_entry.id,
                 message=QUESTION_ANSWERED_AND_STORED
             )
-
-        category_prompt = f"""
-            Categorize the following question into a subject.
-            Options: [Maths, Science, Social, General Knowledge, Other].
-            Question: "{request.question}"
-            Answer with only one word from the options.
-        """
-        category_resp = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": category_prompt}]
-        )
-        subject = category_resp.choices[0].message.content.strip()
-
-        answer_prompt = f"""
-            You're a friendly teacher for 12-year-old kids.
-            Answer the question below in simple, clear, and safe language.
-            Avoid including any violent, sexual, or harmful content. Keep it short.
-
-            Question: {request.question}
-        """
-        answer_resp = self.client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": answer_prompt}]
-        )
-        answer = answer_resp.choices[0].message.content.strip()
-
-        new_entry = ChatConversation(
-            chat_id=chat_id,
-            question=request.question,
-            answer=answer,
-            subject=subject
-        )
-        self.db.add(new_entry)
-        self.db.commit()
-
-        return SuccessMessageResponse(
-            message=QUESTION_ANSWERED_AND_STORED
-        )
 
     def get_chat_conversation_by_id(self, chat_id: int):
         chat = get_chat_by_id(self.db, chat_id)
