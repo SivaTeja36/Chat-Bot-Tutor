@@ -42,7 +42,11 @@ from app.utils.constants import (
     KID_UPDATED_SUCCESSFULLY,
     QUESTION_ANSWERED_AND_STORED
 )
-from app.utils.db_queries import get_chat_by_id, get_chat_by_kid_and_chat_id, get_kid_by_id
+from app.utils.db_queries import (
+    get_chat_by_id, 
+    get_chat_by_kid_and_chat_id,
+    get_kid_by_id
+)
 from app.utils.helpers import (
     apply_filter, 
     apply_pagination, 
