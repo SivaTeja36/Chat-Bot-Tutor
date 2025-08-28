@@ -352,6 +352,10 @@ class KidService:
         request: QuestionRequest,
         logged_in_user_email: str
     ) -> SuccessMessageResponse:
+        """
+        Creates a chat conversation for a given chat, processes the question for moderation and restriction,
+        generates an answer using OpenAI, notifies the parent if the question is restricted, and stores the conversation.
+        """
         chat = get_chat_by_id(self.db, chat_id)
         self._validate_chat_exist(chat)
         kid = get_kid_by_id(self.db, chat.kid_id)
@@ -363,9 +367,13 @@ class KidService:
             model="omni-moderation-latest",
             input=request.question
         )
-
-        triggered_keywords = [kw for kw in keywords_restriction.keywords if kw.lower() in request.question.lower()]
         is_moderation_flagged = moderation.results[0].flagged
+
+        triggered_keywords = []
+        is_restricted = False
+        if keywords_restriction:
+            triggered_keywords = [kw for kw in keywords_restriction.keywords if kw.lower() in request.question.lower()]
+            
         is_restricted = is_moderation_flagged or bool(triggered_keywords)
 
         if is_restricted:
@@ -402,17 +410,26 @@ class KidService:
             messages=[{"role": "user", "content": category_prompt}]
         ).choices[0].message.content.strip()
 
+        # Prepare keywords string separated by commas for prompt
+        keywords_str = ""
+        if keywords_restriction:
+            keywords_str = ", ".join(keywords_restriction.keywords).lower() if keywords_restriction.keywords else ""
+
         # --- Step 3: Answer Generation ---
         answer_prompt = (
             f"You are a friendly teacher answering for {keywords_restriction.title} age people.\n\n"
             "Rules:\n"
             "- If the question is unsafe, harmful, or inappropriate for kids, "
             "reply ONLY with:\n"
-            "\"I cannot provide you any data on this topic as it is not suitable for children.\"\n"
+            f"\"{model_fall_back_message}\"\n"
+            "- If the question is directly or indirectly related to any of these restricted keywords, "
+            "reply ONLY with the fallback message above.\n"
+            f"- The restricted keywords are:\n{keywords_str}\n"
             "- Otherwise, answer simply and clearly in short language.\n"
-            f"- Avoid {keywords_restriction.keywords} content.\n\n"
+            f"- Avoid content related to the restricted keywords.\n\n"
             f"Question: {request.question}"
         )
+
         answer = self.client.chat.completions.create(
             model="gpt-4o-mini",
             messages=[{"role": "user", "content": answer_prompt}]
