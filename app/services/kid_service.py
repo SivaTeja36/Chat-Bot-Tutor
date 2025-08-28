@@ -49,7 +49,10 @@ from app.utils.db_queries import (
     get_kid_by_id,
     get_kid_keyword_restriction_by_id
 )
-from app.utils.email_utils import create_bulk_email_request, create_mail_content_for_restricted_question_asked_by_kid
+from app.utils.email_utils import (
+    create_bulk_email_request, 
+    create_mail_content_for_restricted_question_asked_by_kid
+)
 from app.utils.helpers import (
     apply_filter, 
     apply_pagination, 
@@ -322,15 +325,18 @@ class KidService:
             )   
 
     async def _notify_parent_of_restricted_question(
-        self, parent_email: str, kid_name: str, question: str, keywords: list[str]
+        self, parent_email: str, kid_name: str, question: str, keywords: list[str] | None = None
     ) -> None:
-        """Send email alert to parent when restricted question is asked."""
+        """Send email alert to parent when restricted/flagged question is asked."""
         subject = f"Alert: Restricted Question Asked by {kid_name}"
+        keywords_str = ", ".join(keywords) if keywords else "Indirectly flagged content"
+        
         email_content = create_mail_content_for_restricted_question_asked_by_kid(
             kid_name=kid_name,
-            keywords_str=", ".join(keywords),
+            keywords_str=keywords_str,
             question=question
         )
+        
         bulk_email_request = create_bulk_email_request(
             template_id=None,
             placeholder_values={},
@@ -352,16 +358,19 @@ class KidService:
         keywords_restriction = get_kid_keyword_restriction_by_id(self.db, chat.kid_id) or []
 
         # --- Step 1: Moderation + Restriction Check ---
+        model_fall_back_message = "I cannot provide you any data on this topic as it is not suitable for children."
         moderation = self.client.moderations.create(
             model="omni-moderation-latest",
             input=request.question
         )
 
         triggered_keywords = [kw for kw in keywords_restriction.keywords if kw.lower() in request.question.lower()]
-        is_restricted = moderation.results[0].flagged or bool(triggered_keywords)
+        is_moderation_flagged = moderation.results[0].flagged
+        is_restricted = is_moderation_flagged or bool(triggered_keywords)
 
         if is_restricted:
-            safe_message = "I cannot provide you any data on this topic as it is not suitable for children."
+            safe_message = model_fall_back_message
+            
             new_entry = ChatConversation(
                 chat_id=chat_id,
                 question=request.question,
@@ -371,13 +380,13 @@ class KidService:
             self.db.add(new_entry)
             self.db.commit()
 
-            if triggered_keywords:
-                await self._notify_parent_of_restricted_question(
-                    parent_email=logged_in_user_email,
-                    kid_name=kid.name,
-                    question=request.question,
-                    keywords=triggered_keywords,
-                )
+            # Always notify parent if restricted (direct or indirect)
+            await self._notify_parent_of_restricted_question(
+                parent_email=logged_in_user_email,
+                kid_name=kid.name,
+                question=request.question,
+                keywords=triggered_keywords if triggered_keywords else None
+            )
 
             return SuccessMessageResponse(id=new_entry.id, message=QUESTION_ANSWERED_AND_STORED)
 
@@ -409,6 +418,15 @@ class KidService:
             messages=[{"role": "user", "content": answer_prompt}]
         ).choices[0].message.content.strip()
 
+        # If the generated answer is the restricted safe message, notify parent
+        if answer == model_fall_back_message:
+            await self._notify_parent_of_restricted_question(
+                parent_email=logged_in_user_email,
+                kid_name=kid.name,
+                question=request.question,
+                keywords=None
+            )
+
         # --- Step 4: Save & Commit ---
         new_entry = ChatConversation(
             chat_id=chat_id,
@@ -419,7 +437,10 @@ class KidService:
         self.db.add(new_entry)
         self.db.commit()
 
-        return SuccessMessageResponse(id=new_entry.id, message=QUESTION_ANSWERED_AND_STORED)
+        return SuccessMessageResponse(
+            id=new_entry.id, 
+            message=QUESTION_ANSWERED_AND_STORED
+        )
 
     def get_chat_conversation_by_id(self, chat_id: int):
         chat = get_chat_by_id(self.db, chat_id)
