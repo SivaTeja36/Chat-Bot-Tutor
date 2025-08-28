@@ -138,17 +138,17 @@ class KeywordRestrictionService:
     
     def get_keyword_restrictions_response(
         self, 
-        keyword_restrictions: KeywordRestrictions, 
+        keyword_restriction: KeywordRestrictions, 
         users: Dict[int, str]
     ) -> GetKeywordRestrictionResponse:
         return GetKeywordRestrictionResponse(
-            id=keyword_restrictions.id, 
-            title=keyword_restrictions.title, 
-            keywords=keyword_restrictions.keywords,
-            created_at=keyword_restrictions.created_at, 
-            created_by=users.get(keyword_restrictions.created_by),
-            updated_at=keyword_restrictions.updated_at,
-            updated_by=users.get(keyword_restrictions.updated_by)
+            id=keyword_restriction.id, 
+            title=keyword_restriction.title, 
+            keywords=keyword_restriction.keywords,
+            created_at=keyword_restriction.created_at, 
+            created_by=users.get(keyword_restriction.created_by),
+            updated_at=keyword_restriction.updated_at,
+            updated_by=users.get(keyword_restriction.updated_by)
         )
     
     def get_keyword_restrictions_responses(
@@ -246,9 +246,14 @@ class KeywordRestrictionService:
             message=KEYWORD_RESTRICTIONS_UPDATED_SUCCESSFULLY
         )
     
-    def get_kid_keyword_restriction_query(self, restriction_id: int, kid_id: int):
+    def get_kid_keyword_restriction_query(self, keyword_restriction_id: int, kid_id: int):
         return self.db.query(KidKeywordRestrictions).filter(
-            KidKeywordRestrictions.id == restriction_id,
+            KidKeywordRestrictions.keyword_restriction_id == keyword_restriction_id,
+            KidKeywordRestrictions.kid_id == kid_id
+        ).first()
+    
+    def get_kid_keyword_restriction_query_by_id(self, kid_id: int):
+        return self.db.query(KidKeywordRestrictions).filter(
             KidKeywordRestrictions.kid_id == kid_id
         ).first()
     
@@ -261,16 +266,22 @@ class KeywordRestrictionService:
     
     def map_keyword_restriction_to_kid(
         self, 
-        restriction_id: int,
+        keyword_restriction_id: int,
         kid_id: int,
         logged_in_user_id: int
     ) -> SuccessMessageResponse:
-        kid_keyword_restriction = self.get_kid_keyword_restriction_query(restriction_id, kid_id)
+        keyword_restriction = self.get_keyword_restrictions_data_by_id(keyword_restriction_id)
+        self.validate_keyword_restriction_exists(keyword_restriction)
+
+        kid = get_kid_by_id(self.db, kid_id)
+        self.validate_kid_exists(kid)
+
+        kid_keyword_restriction = self.get_kid_keyword_restriction_query(keyword_restriction_id, kid_id)
         self.validate_kid_keyword_restriction_already_exists(kid_keyword_restriction)
 
         new_kid_keyword_restriction = KidKeywordRestrictions(
             kid_id=kid_id,
-            restriction_id=restriction_id,
+            keyword_restriction_id=keyword_restriction_id,
             created_by=logged_in_user_id,
             updated_by=logged_in_user_id
         )
@@ -282,7 +293,7 @@ class KeywordRestrictionService:
             message=KEYWORD_RESTRICTIONS_CREATED_SUCCESSFULLY
         )
     
-    def validate_kid_keyword_restriction_exists(self, kid_keyword_restriction) -> bool:
+    def validate_kid_keyword_restriction_exists(self, kid_keyword_restriction: KidKeywordRestrictions) -> bool:
         if not kid_keyword_restriction:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, 
@@ -305,7 +316,7 @@ class KeywordRestrictionService:
         page: int | None,
         page_size: int | None
     ) -> Tuple[List[KidKeywordRestrictions], int]:
-        query = self.base_get_keyword_restrictions_query()
+        query = self.base_get_kids_mapped_keyword_restrictions_query()
         
         query = apply_sorting(
             query=query, 
@@ -328,8 +339,9 @@ class KeywordRestrictionService:
         users: Dict[int, str]
     ) -> GetKidKeywordRestrictionResponse:
         kid = self.db.query(Kid).filter(Kid.id == kid_keyword_restriction.kid_id).first()
-        keyword_restrictions = self.get_keyword_restrictions_by_id(kid_keyword_restriction.restriction_id)
-        keyword_restrictions_response = self.get_keyword_restrictions_response(users, keyword_restrictions)
+        keyword_restrictions_response = self.get_keyword_restrictions_by_id(
+            kid_keyword_restriction.keyword_restriction_id
+        )
 
         get_kid_response = GetKidResponse(
             id=kid.id,
@@ -388,17 +400,17 @@ class KeywordRestrictionService:
 
     def get_mapped_keyword_restriction_for_kid(
         self, 
-        restriction_id: int,
+        keyword_restriction_id: int,
         kid_id: int
     ) -> List[GetKeywordRestrictionResponse]:
-        kid_keyword_restriction = self.get_kid_keyword_restriction_query(restriction_id, kid_id)
-        self.validate_kid_keyword_restriction_exists(kid_keyword_restriction)
-
-        keyword_restriction = self.get_keyword_restrictions_data_by_id(restriction_id)
+        keyword_restriction = self.get_keyword_restrictions_data_by_id(keyword_restriction_id)
         self.validate_keyword_restriction_exists(keyword_restriction)
 
         kid = get_kid_by_id(self.db, kid_id)
         self.validate_kid_exists(kid)
+
+        kid_keyword_restriction = self.get_kid_keyword_restriction_query(keyword_restriction_id, kid_id)
+        self.validate_kid_keyword_restriction_exists(kid_keyword_restriction)
 
         users = get_all_users()
 
@@ -407,29 +419,34 @@ class KeywordRestrictionService:
     def update_mapped_keyword_restriction_for_kid_by_id(
         self, 
         logged_in_user_id: int, 
-        restriction_id: int,
+        keyword_restriction_id: int,
         kid_id: int
     ) -> SuccessMessageResponse:
-        kid_keyword_restriction = self.get_kid_keyword_restriction_query(restriction_id, kid_id)
-        self.validate_kid_keyword_restriction_exists(kid_keyword_restriction)
-
-        keyword_restriction = self.get_keyword_restrictions_data_by_id(restriction_id)
+        keyword_restriction = self.get_keyword_restrictions_data_by_id(keyword_restriction_id)
         self.validate_keyword_restriction_exists(keyword_restriction)
 
-        kid_keyword_restriction.restriction_id = restriction_id
+        kid_keyword_restriction = self.get_kid_keyword_restriction_query_by_id(kid_id)
+        self.validate_kid_keyword_restriction_exists(kid_keyword_restriction)
+
+        kid_keyword_restriction.keyword_restriction_id = keyword_restriction_id
         kid_keyword_restriction.updated_at = datetime.now()
         kid_keyword_restriction.updated_by = logged_in_user_id
 
+        return SuccessMessageResponse(
+            id=kid_keyword_restriction.id,
+            message=KEYWORD_RESTRICTIONS_UPDATED_SUCCESSFULLY
+        )
+
     def delete_mapped_keyword_restriction_for_kid_by_id(  
         self, 
-        restriction_id: int,
+        keyword_restriction_id: int,
         kid_id: int
     ) -> SuccessMessageResponse:
-        kid_keyword_restriction = self.get_kid_keyword_restriction_query(restriction_id, kid_id)
-        self.validate_kid_keyword_restriction_exists(kid_keyword_restriction)
-
-        keyword_restriction = self.get_keyword_restrictions_data_by_id(restriction_id)
+        keyword_restriction = self.get_keyword_restrictions_data_by_id(keyword_restriction_id)
         self.validate_keyword_restriction_exists(keyword_restriction)
+    
+        kid_keyword_restriction = self.get_kid_keyword_restriction_query(keyword_restriction_id, kid_id)
+        self.validate_kid_keyword_restriction_exists(kid_keyword_restriction)
 
         self.db.delete(kid_keyword_restriction)
         self.db.commit()

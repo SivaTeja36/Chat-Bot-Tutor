@@ -10,7 +10,7 @@ class KidKeywordRestrictions(Base):
 
     id: int = sa.Column(sa.Integer, primary_key=True, nullable=False) 
     kid_id: int = sa.Column(sa.Integer, sa.ForeignKey("kids.id"), nullable=False)
-    restriction_id: int = sa.Column(sa.Integer, sa.ForeignKey("keyword_restrictions.id"), nullable=False)
+    keyword_restriction_id: int = sa.Column(sa.Integer, sa.ForeignKey("keyword_restrictions.id"), nullable=False)
     created_at: datetime = sa.Column(sa.DateTime, nullable=False, default=sa.func.now())
     created_by: int = sa.Column(sa.Integer, sa.ForeignKey("users.id"), nullable=False)
     updated_at: datetime = sa.Column(sa.DateTime, nullable=False, default=sa.func.now())

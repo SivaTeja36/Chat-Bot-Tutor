@@ -4,7 +4,9 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.entities.chat import Chat
+from app.entities.keyword_restriction import KeywordRestrictions
 from app.entities.kid import Kid
+from app.entities.kid_keyword_restriction import KidKeywordRestrictions
 from app.entities.user import User
 
 # ----------------------- USER QUERIES ------------------------:
@@ -51,3 +53,12 @@ def get_chat_by_kid_and_chat_id(db: Session, kid_id: int, chat_id: int) -> Chat:
 
 def get_chat_by_id(db: Session, chat_id: int) -> Chat:
     return db.query(Chat).filter(Chat.id == chat_id).first()
+
+# ----------------------- KEYWORD RESTRICTIONS QUERIES ------------------------:
+def get_kid_keyword_restriction_by_id(db: Session, kid_id: int):
+    return (
+        db.query(KeywordRestrictions)
+        .join(KidKeywordRestrictions, KeywordRestrictions.id == KidKeywordRestrictions.keyword_restriction_id)
+        .filter(KidKeywordRestrictions.kid_id == kid_id)
+        .first()
+    )

@@ -33,14 +33,14 @@ def upgrade() -> None:
     op.create_table('kids_keyword_restrictions',
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('kid_id', sa.Integer(), nullable=False),
-    sa.Column('restriction_id', sa.Integer(), nullable=False),
+    sa.Column('keyword_restriction_id', sa.Integer(), nullable=False),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.Column('created_by', sa.Integer(), nullable=False),
     sa.Column('updated_at', sa.DateTime(), nullable=False),
     sa.Column('updated_by', sa.Integer(), nullable=False),
     sa.ForeignKeyConstraint(['created_by'], ['users.id'], ),
     sa.ForeignKeyConstraint(['kid_id'], ['kids.id'], ),
-    sa.ForeignKeyConstraint(['restriction_id'], ['keyword_restrictions.id'], ),
+    sa.ForeignKeyConstraint(['keyword_restriction_id'], ['keyword_restrictions.id'], ),
     sa.ForeignKeyConstraint(['updated_by'], ['users.id'], ),
     sa.PrimaryKeyConstraint('id')
     )

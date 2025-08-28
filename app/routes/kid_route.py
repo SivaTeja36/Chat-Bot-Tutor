@@ -195,13 +195,16 @@ async def delete_kid_chat(
     status_code=status.HTTP_201_CREATED
 )
 async def create_chat_conversation(
+    request_state: Request,
     chat_id: PositiveInt,
     request: QuestionRequest, 
     service: KidService = Depends(KidService)
 ) -> ApiResponse[SuccessMessageResponse]:
-    return ApiResponse(data=service.create_chat_conversation(
+    logged_in_user_email=request_state.state.user.email
+    return ApiResponse(data=await service.create_chat_conversation(
             chat_id=chat_id,
-            request=request
+            request=request,
+            logged_in_user_email=logged_in_user_email
         )
     )
 

@@ -24,13 +24,13 @@ from app.utils.constants import UPDATED_AT
 from app.utils.enums import OrderByTypes
 
 router = APIRouter(
-    prefix="/keyword-restrictions", 
+    prefix="", 
     tags=["KEYWORD RESTRICTION MANAGEMENT SERVICE"]
 )
 
 
 @router.post(
-    "", 
+    "/keyword-restrictions", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_201_CREATED
 )
@@ -47,7 +47,7 @@ async def create_keyword_restrictions(
 
 
 @router.get(
-    "", 
+    "/keyword-restrictions", 
     response_model=GetApiResponse[List[GetKeywordRestrictionResponse]], 
     status_code=status.HTTP_200_OK
 )
@@ -80,7 +80,7 @@ async def get_all_keyword_restrictions(
 
 
 @router.get(
-    "/{restriction_id}", 
+    "/keyword-restrictions/{restriction_id}", 
     response_model=ApiResponse[GetKeywordRestrictionResponse], 
     status_code=status.HTTP_200_OK
 )
@@ -88,11 +88,11 @@ async def get_keyword_restrictions_by_id(
     restriction_id: PositiveInt,
     service: KeywordRestrictionService = Depends(KeywordRestrictionService)
 ) -> ApiResponse[List[GetKeywordRestrictionResponse]]:
-    return ApiResponse(data=service.get_all_keyword_restrictions(restriction_id))
+    return ApiResponse(data=service.get_keyword_restrictions_by_id(restriction_id))
   
 
 @router.put(
-    "/{restriction_id}", 
+    "/keyword-restrictions/{restriction_id}", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_201_CREATED
 )
@@ -111,7 +111,7 @@ async def update_keyword_restrictions_by_id(
 
 
 @router.post(
-    "/{keyword_restriction_id}/kids", 
+    "/keyword-restrictions/{keyword_restriction_id}/kids", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_201_CREATED
 )
@@ -122,9 +122,9 @@ async def map_keyword_restriction_to_kid(
     service: KeywordRestrictionService = Depends(KeywordRestrictionService)
 ) -> ApiResponse[SuccessMessageResponse]:
     return ApiResponse(data=service.map_keyword_restriction_to_kid(
-            logged_in_user_id=request_state.state.user.id, 
             keyword_restriction_id=keyword_restriction_id,
-            kid_id=kid_id
+            kid_id=kid_id,
+            logged_in_user_id=request_state.state.user.id
         )
     )
 
@@ -157,7 +157,7 @@ async def get_all_kids_mapped_keyword_restrictions(
 
 
 @router.get(
-    "/{keyword_restriction_id}/kids", 
+    "/keyword-restrictions/{keyword_restriction_id}/kids", 
     response_model=ApiResponse[GetKidKeywordRestrictionResponse], 
     status_code=status.HTTP_200_OK
 )
@@ -174,7 +174,7 @@ async def get_mapped_keyword_restriction_for_kid_by_id(
 
 
 @router.put(
-    "/{keyword_restriction_id}/kids", 
+    "/keyword-restrictions/{keyword_restriction_id}/kids", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_200_OK
 )
@@ -193,18 +193,16 @@ async def update_mapped_keyword_restriction_for_kid_by_id(
 
 
 @router.delete(
-    "/{keyword_restriction_id}/kids", 
+    "/keyword-restrictions/{keyword_restriction_id}/kids", 
     response_model=ApiResponse[SuccessMessageResponse], 
     status_code=status.HTTP_200_OK
 )
 async def delete_mapped_keyword_restriction_for_kid_by_id(
-    request_state: Request,
     keyword_restriction_id: PositiveInt,
     kid_id: PositiveInt,
     service: KeywordRestrictionService = Depends(KeywordRestrictionService)
 ) -> ApiResponse[SuccessMessageResponse]:
     return ApiResponse(data=service.delete_mapped_keyword_restriction_for_kid_by_id(
-            logged_in_user_id=request_state.state.user.id, 
             keyword_restriction_id=keyword_restriction_id,
             kid_id=kid_id
         )

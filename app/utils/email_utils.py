@@ -65,6 +65,35 @@ def create_mail_content_for_set_password(email: str, invitation_token: str) -> s
         </html>
     """
 
+def create_mail_content_for_restricted_question_asked_by_kid(kid_name: str, keywords_str: str, question: str) -> str:
+    """
+        Create the HTML content for notifying parents about a restricted question asked by their child.
+    """
+    return f"""
+        <!DOCTYPE html>
+        <html>
+        <body>
+            <div>
+                <h2>Restricted Question Alert</h2>
+                <p>Dear Parent,</p>
+                <p>
+                    This is to inform you that your child <strong>{kid_name}</strong> has asked a question containing restricted keywords (<strong>{keywords_str}</strong>):
+                </p>
+                <blockquote>
+                    <strong>Question:</strong> "{question}"
+                </blockquote>
+                <p>
+                    Please review and discuss this with your child if needed.
+                </p>
+                <p>
+                    Regards,<br>
+                    ChatTutor Safety Team
+                </p>
+            </div>
+        </body>
+        </html>
+    """
+
 def get_bulk_email_request_body(
     template_id: str, 
     placeholder_values: dict[str, Any], 

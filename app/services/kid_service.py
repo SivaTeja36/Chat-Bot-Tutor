@@ -18,6 +18,7 @@ import sqlalchemy as sa
 from sqlalchemy.orm import Session
 from openai import OpenAI
 
+from app.background_tasks.send_email_task import send_bulk_mails
 from app.connectors.database_connector import get_db
 from app.entities.chat import Chat
 from app.entities.kid import Kid
@@ -45,8 +46,10 @@ from app.utils.constants import (
 from app.utils.db_queries import (
     get_chat_by_id, 
     get_chat_by_kid_and_chat_id,
-    get_kid_by_id
+    get_kid_by_id,
+    get_kid_keyword_restriction_by_id
 )
+from app.utils.email_utils import create_bulk_email_request, create_mail_content_for_restricted_question_asked_by_kid
 from app.utils.helpers import (
     apply_filter, 
     apply_pagination, 
@@ -316,87 +319,107 @@ class KidService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=CHAT_NOT_FOUND
-            )        
+            )   
 
-    def create_chat_conversation(
-            self,
-            chat_id: int,
-            request: QuestionRequest
-        ) -> SuccessMessageResponse:
-            
-            chat = get_chat_by_id(self.db, chat_id)
-            self._validate_chat_exist(chat)
+    async def _notify_parent_of_restricted_question(
+        self, parent_email: str, kid_name: str, question: str, keywords: list[str]
+    ) -> None:
+        """Send email alert to parent when restricted question is asked."""
+        subject = f"Alert: Restricted Question Asked by {kid_name}"
+        email_content = create_mail_content_for_restricted_question_asked_by_kid(
+            kid_name=kid_name,
+            keywords_str=", ".join(keywords),
+            question=question
+        )
+        bulk_email_request = create_bulk_email_request(
+            template_id=None,
+            placeholder_values={},
+            content=email_content,
+            subject=subject,
+            recipients=[parent_email]
+        )
+        await send_bulk_mails(bulk_email_request)
 
-            # Step 1: Moderation Check
-            moderation = self.client.moderations.create(
-                model="omni-moderation-latest",
-                input=request.question
-            )
-            
-            if moderation.results[0].flagged:
-                # Common fixed safe response for restricted content
-                safe_message = "I cannot provide you any data on this topic as it is not suitable for children."
+    async def create_chat_conversation(
+        self,
+        chat_id: int,
+        request: QuestionRequest,
+        logged_in_user_email: str
+    ) -> SuccessMessageResponse:
+        chat = get_chat_by_id(self.db, chat_id)
+        self._validate_chat_exist(chat)
+        kid = get_kid_by_id(self.db, chat.kid_id)
+        keywords_restriction = get_kid_keyword_restriction_by_id(self.db, chat.kid_id) or []
 
-                new_entry = ChatConversation(
-                    chat_id=chat_id,
-                    question=request.question,
-                    answer=safe_message,
-                    subject="Restricted Content"
-                )
-                self.db.add(new_entry)
-                self.db.commit()
+        # --- Step 1: Moderation + Restriction Check ---
+        moderation = self.client.moderations.create(
+            model="omni-moderation-latest",
+            input=request.question
+        )
 
-                return SuccessMessageResponse(
-                    id=new_entry.id,
-                    message=QUESTION_ANSWERED_AND_STORED
-                )
+        triggered_keywords = [kw for kw in keywords_restriction.keywords if kw.lower() in request.question.lower()]
+        is_restricted = moderation.results[0].flagged or bool(triggered_keywords)
 
-            # Step 2: Categorization Prompt
-            category_prompt = f"""
-            Categorize the following question into a subject.
-            Options: [Maths, Science, Social, General Knowledge, Other].
-            Question: "{request.question}"
-            Answer with only one word from the options.
-            """
-            category_resp = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": category_prompt}]
-            )
-            subject = category_resp.choices[0].message.content.strip()
-
-            # Step 3: Answer Generation Prompt - Strictly Safe
-            answer_prompt = f"""
-            You are a friendly teacher for 12-year-old kids.
-            
-            Rules:
-            - If the question is unsafe, harmful, or inappropriate for kids, 
-            then ONLY reply with this fixed message:
-            "I cannot provide you any data on this topic as it is not suitable for children."
-            - Otherwise, answer in simple, clear, and short language suitable for 12-year-old kids.
-            - Avoid violent, sexual, harmful, or complex content.
-
-            Question: {request.question}
-            """
-            answer_resp = self.client.chat.completions.create(
-                model="gpt-4o-mini",
-                messages=[{"role": "user", "content": answer_prompt}]
-            )
-            answer = answer_resp.choices[0].message.content.strip()
-
-            # Step 4: Save conversation
+        if is_restricted:
+            safe_message = "I cannot provide you any data on this topic as it is not suitable for children."
             new_entry = ChatConversation(
                 chat_id=chat_id,
                 question=request.question,
-                answer=answer,
-                subject=subject
+                answer=safe_message,
+                subject="Restricted Content"
             )
             self.db.add(new_entry)
             self.db.commit()
 
-            return SuccessMessageResponse(
-                id=new_entry.id,
-                message=QUESTION_ANSWERED_AND_STORED
-            )
+            if triggered_keywords:
+                await self._notify_parent_of_restricted_question(
+                    parent_email=logged_in_user_email,
+                    kid_name=kid.name,
+                    question=request.question,
+                    keywords=triggered_keywords,
+                )
+
+            return SuccessMessageResponse(id=new_entry.id, message=QUESTION_ANSWERED_AND_STORED)
+
+        # --- Step 2: Categorization ---
+        category_prompt = (
+            f"Categorize this question into one of the subjects: "
+            f"[Maths, Science, Social, General Knowledge, Other]. "
+            f"Question: \"{request.question}\". "
+            f"Respond with only one word from the options."
+        )
+        subject = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": category_prompt}]
+        ).choices[0].message.content.strip()
+
+        # --- Step 3: Answer Generation ---
+        answer_prompt = (
+            f"You are a friendly teacher answering for {keywords_restriction.title} age people.\n\n"
+            "Rules:\n"
+            "- If the question is unsafe, harmful, or inappropriate for kids, "
+            "reply ONLY with:\n"
+            "\"I cannot provide you any data on this topic as it is not suitable for children.\"\n"
+            "- Otherwise, answer simply and clearly in short language.\n"
+            f"- Avoid {keywords_restriction.keywords} content.\n\n"
+            f"Question: {request.question}"
+        )
+        answer = self.client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": answer_prompt}]
+        ).choices[0].message.content.strip()
+
+        # --- Step 4: Save & Commit ---
+        new_entry = ChatConversation(
+            chat_id=chat_id,
+            question=request.question,
+            answer=answer,
+            subject=subject
+        )
+        self.db.add(new_entry)
+        self.db.commit()
+
+        return SuccessMessageResponse(id=new_entry.id, message=QUESTION_ANSWERED_AND_STORED)
 
     def get_chat_conversation_by_id(self, chat_id: int):
         chat = get_chat_by_id(self.db, chat_id)
