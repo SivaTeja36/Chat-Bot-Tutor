@@ -5,7 +5,6 @@ from typing import (
     List, 
     Tuple
 )
-import uuid
 
 from automapper import mapper
 from dotenv import load_dotenv
@@ -86,8 +85,8 @@ class KidService:
             message=KID_CREATED_SUCCESSFULLY
         )
     
-    def base_get_kid_query(self):
-        return self.db.query(Kid).filter(Kid.is_active == True)
+    def base_get_kid_query(self, parent_id: int):
+        return self.db.query(Kid).filter(Kid.is_active == True, Kid.parent_id == parent_id)
     
     def get_matched_kid_based_on_search(
         self, 
@@ -110,6 +109,7 @@ class KidService:
     
     def get_all_kids_data(
         self,
+        parent_id: int,
         search: str | None,
         filter_by: str | None,
         filter_values: str | None,
@@ -118,7 +118,7 @@ class KidService:
         page: int | None,
         page_size: int | None
     ) -> Tuple[List[Kid], int]:
-        query = self.base_get_kid_query()
+        query = self.base_get_kid_query(parent_id)
         
         query = self.get_matched_kid_based_on_search(query, search)
         
@@ -164,6 +164,7 @@ class KidService:
     
     def get_kid_responses(
         self,
+        parent_id: int,
         search: str | None,
         filter_by: str | None,
         filter_values: str | None,
@@ -173,6 +174,7 @@ class KidService:
         page_size: int | None
     ) -> Tuple[List[GetKidResponse], int]:
         total_count, users_data = self.get_all_kids_data(
+            parent_id=parent_id,
             search=search,
             filter_by=filter_by,
             filter_values=filter_values,
@@ -193,6 +195,7 @@ class KidService:
     
     def get_all_kids(
         self,
+        parent_id: int,
         search: str | None,
         filter_by: str | None,
         filter_values: str | None,
@@ -202,6 +205,7 @@ class KidService:
         page_size: int | None
     ) -> Tuple[List[GetKidResponse], int]:
         return self.get_kid_responses(
+            parent_id=parent_id,
             search=search,
             filter_by=filter_by,
             filter_values=filter_values,
@@ -416,8 +420,9 @@ class KidService:
             keywords_str = ", ".join(keywords_restriction.keywords).lower() if keywords_restriction.keywords else ""
 
         # --- Step 3: Answer Generation ---
+        kid_age_group = keywords_restriction.title if keywords_restriction else ""
         answer_prompt = (
-            f"You are a friendly teacher answering for {keywords_restriction.title} age people.\n\n"
+            f"You are a friendly teacher answering for {kid_age_group} age people.\n\n"
             "Rules:\n"
             "- If the question is unsafe, harmful, or inappropriate for kids, "
             "reply ONLY with:\n"

@@ -55,6 +55,7 @@ async def create_kid(
     status_code=status.HTTP_200_OK
 )
 async def get_all_kids( 
+    request_state: Request,
     search: Optional[str] = Query(default=None),
     filter_by: Optional[str] = Query(default=None),
     filter_values: Optional[str] = Query(default=None),
@@ -65,6 +66,7 @@ async def get_all_kids(
     service: KidService = Depends(KidService)
 ) -> GetApiResponse[List[GetKidResponse]]:
     total_count, response = service.get_all_kids(
+        parent_id=request_state.state.user.id, 
         search=search,
         filter_by=filter_by,
         filter_values=filter_values,
