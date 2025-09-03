@@ -366,7 +366,7 @@ class KidService:
         keywords_restriction = get_kid_keyword_restriction_by_id(self.db, chat.kid_id) or []
 
         # --- Step 1: Moderation + Restriction Check ---
-        model_fall_back_message = "I cannot provide you any data on this topic as it is not suitable for children."
+        model_fallback_message = "I cannot provide you any data on this topic as it is not suitable for children."
         moderation = self.client.moderations.create(
             model="omni-moderation-latest",
             input=request.question
@@ -381,7 +381,7 @@ class KidService:
         is_restricted = is_moderation_flagged or bool(triggered_keywords)
 
         if is_restricted:
-            safe_message = model_fall_back_message
+            safe_message = model_fallback_message
             
             new_entry = ChatConversation(
                 chat_id=chat_id,
@@ -402,7 +402,7 @@ class KidService:
 
             return SuccessMessageResponse(id=new_entry.id, message=QUESTION_ANSWERED_AND_STORED)
 
-        # --- Step 2: Categorization ---
+       # --- Step 1: Categorization ---
         category_prompt = (
             f"Categorize this question into one of the subjects: "
             f"[Maths, Science, Social, General Knowledge, Other]. "
@@ -414,24 +414,29 @@ class KidService:
             messages=[{"role": "user", "content": category_prompt}]
         ).choices[0].message.content.strip()
 
-        # Prepare keywords string separated by commas for prompt
-        keywords_str = ""
-        if keywords_restriction:
-            keywords_str = ", ".join(keywords_restriction.keywords).lower() if keywords_restriction.keywords else ""
+        # Prepare keywords string separated by commas for the prompt
+        keywords_str = ", ".join(keywords_restriction.keywords).lower() if keywords_restriction and keywords_restriction.keywords else ""
 
-        # --- Step 3: Answer Generation ---
+        # --- Step 2: Answer Generation with keyword rules in the prompt ---
         kid_age_group = keywords_restriction.title if keywords_restriction else ""
+        
+        # The kid_age_group will be an empty string if there's no title
+        kid_age_group_str = f" for {kid_age_group} age people" if kid_age_group else ""
+
         answer_prompt = (
-            f"You are a friendly teacher answering for {kid_age_group} age people.\n\n"
-            "Rules:\n"
-            "- If the question is unsafe, harmful, or inappropriate for kids, "
-            "reply ONLY with:\n"
-            f"\"{model_fall_back_message}\"\n"
-            "- If the question is directly or indirectly related to any of these restricted keywords, "
-            "reply ONLY with the fallback message above.\n"
-            f"- The restricted keywords are:\n{keywords_str}\n"
-            "- Otherwise, answer simply and clearly in short language.\n"
-            f"- Avoid content related to the restricted keywords.\n\n"
+            f"You are a friendly teacher answering{kid_age_group_str}.\n\n"
+            "--- ABSOLUTE RULE START ---\n"
+            "If the question contains any of these restricted keywords, reply ONLY with:\n"
+            f"'{model_fallback_message}'\n"
+            "The restricted keywords are:\n"
+            f"{keywords_str}\n"
+            "--- ABSOLUTE RULE END ---\n"
+            "\n"
+            "Rules for all other questions:\n"
+            "- Answer simply and clearly in short language.\n"
+            "- Be educational and responsible.\n"
+            "- Do not provide any direct or harmful instructions. For sensitive topics, "
+            "provide context in a safe and educational manner.\n\n"
             f"Question: {request.question}"
         )
 
@@ -440,14 +445,21 @@ class KidService:
             messages=[{"role": "user", "content": answer_prompt}]
         ).choices[0].message.content.strip()
 
-        # If the generated answer is the restricted safe message, notify parent
-        if answer == model_fall_back_message:
+        # --- Step 3: Handle Fallback + Notification ---
+        if answer == model_fallback_message:
+            triggered_keywords = [
+                kw for kw in keywords_restriction.keywords 
+                if kw.lower() in request.question.lower()
+            ]
+            
             await self._notify_parent_of_restricted_question(
                 parent_email=logged_in_user_email,
                 kid_name=kid.name,
                 question=request.question,
-                keywords=None
+                keywords=triggered_keywords if triggered_keywords else None
             )
+            # Use a slightly different subject for a clearer log
+            subject = "Restricted Content"
 
         # --- Step 4: Save & Commit ---
         new_entry = ChatConversation(
